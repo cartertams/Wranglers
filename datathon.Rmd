@@ -1,0 +1,427 @@
+---
+title: "Datathon"
+author: "Carter Tams, Drake Smith, Matt Lee"
+date: "2023-11-12"
+output: ioslides_presentation
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = FALSE)
+library(e1071)
+library(caret)
+library(foreign)
+library(data.table)
+library(dplyr)
+library(MASS)
+```
+
+
+```{r}
+
+
+#DEMO - Demographic Data
+cnames <- c('SEQN', 'RIAGENDR','RIDAGEYR','RIDRETH3','DMQMILIZ','DMDBORN4','DMDCITZN', 'DMDEDUC2', 'DMDMARTL', 'DMDHHSIZ', 'INDHHIN2')
+download.file("https://wwwn.cdc.gov/nchs/nhanes/2011-2012/DEMO_G.XPT", tf <- tempfile(), mode="wb")
+DEMO_G3 <- foreign::read.xport(tf)
+DEMO_G3 <- DEMO_G3[cnames]
+
+download.file("https://wwwn.cdc.gov/nchs/nhanes/2013-2014/DEMO_H.XPT", tf <- tempfile(), mode="wb")
+DEMO_H3 <- foreign::read.xport(tf)
+DEMO_H3 <- DEMO_H3[cnames]
+
+download.file("https://wwwn.cdc.gov/nchs/nhanes/2015-2016/DEMO_I.XPT", tf <- tempfile(), mode="wb")
+DEMO_I3 <- foreign::read.xport(tf)
+DEMO_I3 <- DEMO_I3[cnames]
+
+download.file("https://wwwn.cdc.gov/nchs/nhanes/2017-2018/DEMO_J.XPT", tf <- tempfile(), mode="wb")
+DEMO_J3 <- foreign::read.xport(tf)
+DEMO_J3 <- DEMO_J3[cnames]
+
+DEMO <- rbind(rbind(DEMO_G3,DEMO_H3),rbind(DEMO_I3,DEMO_J3))
+DEMO$DMQMILIZ[is.na(DEMO$DMQMILIZ)] <- 9
+DEMO$DMDCITZN[is.na(DEMO$DMDCITZN)] <- 9
+DEMO$DMDEDUC2[is.na(DEMO$DMDEDUC2)] <- 9
+DEMO$DMDMARTL[is.na(DEMO$DMDMARTL)] <- 99
+DEMO$INDHHIN2[is.na(DEMO$INDHHIN2)] <- 99
+
+#HEPB - Hepatitis B: core antibody, surface antigen, and Hepatitis D antibody
+cnames <- c('SEQN', 'LBXHBC', 'LBDHBG')
+download.file("https://wwwn.cdc.gov/nchs/nhanes/2011-2012/HEPBD_G.XPT", tf <- tempfile(), mode="wb")
+HEPBD_G3 <- foreign::read.xport(tf)
+HEPBD_G3 <- HEPBD_G3[cnames]
+
+download.file("https://wwwn.cdc.gov/nchs/nhanes/2013-2014/HEPBD_H.XPT", tf <- tempfile(), mode="wb")
+HEPBD_H3 <- foreign::read.xport(tf)
+HEPBD_H3 <- HEPBD_H3[cnames]
+
+
+download.file("https://wwwn.cdc.gov/nchs/nhanes/2015-2016/HEPBD_I.XPT", tf <- tempfile(), mode="wb")
+HEPBD_I3 <- foreign::read.xport(tf)
+HEPBD_I3 <- HEPBD_I3[cnames]
+
+download.file("https://wwwn.cdc.gov/nchs/nhanes/2017-2018/HEPBD_J.XPT", tf <- tempfile(), mode="wb")
+HEPBD_J3 <- foreign::read.xport(tf)
+HEPBD_J3 <- HEPBD_J3[cnames]
+
+HEPBD <- rbind(rbind(HEPBD_G3,HEPBD_H3),rbind(HEPBD_I3,HEPBD_J3))
+HEPBD$LBXHBC[is.na(HEPBD$LBXHBC)] <- 3
+HEPBD$LBDHBG[is.na(HEPBD$LBDHBG)] <- 2
+
+
+
+#HEPB_S - Hepatitis B: Surface Antibody
+download.file("https://wwwn.cdc.gov/nchs/nhanes/2011-2012/HEPB_S_G.XPT", tf <- tempfile(), mode="wb")
+HEPB_S_G3 <- foreign::read.xport(tf)
+
+download.file("https://wwwn.cdc.gov/nchs/nhanes/2013-2014/HEPB_S_H.XPT", tf <- tempfile(), mode="wb")
+HEPB_S_H3 <- foreign::read.xport(tf)
+
+download.file("https://wwwn.cdc.gov/nchs/nhanes/2015-2016/HEPB_S_I.XPT", tf <- tempfile(), mode="wb")
+HEPB_S_I3 <- foreign::read.xport(tf)
+
+download.file("https://wwwn.cdc.gov/nchs/nhanes/2017-2018/HEPB_S_J.XPT", tf <- tempfile(), mode="wb")
+HEPB_S_J3 <- foreign::read.xport(tf)
+
+HEPB_S <- rbind(rbind(HEPB_S_G3,HEPB_S_H3),rbind(HEPB_S_I3,HEPB_S_J3))
+HEPB_S$LBXHBS[is.na(HEPB_S$LBXHBS)] <- 3
+
+
+#IMQ - Immunization
+cnames <- c('SEQN', 'IMQ020')
+download.file("https://wwwn.cdc.gov/nchs/nhanes/2011-2012/IMQ_G.XPT", tf <- tempfile(), mode="wb")
+IMQ_G3 <- foreign::read.xport(tf)
+IMQ_G3 <- IMQ_G3[cnames]
+
+download.file("https://wwwn.cdc.gov/nchs/nhanes/2013-2014/IMQ_H.XPT", tf <- tempfile(), mode="wb")
+IMQ_H3 <- foreign::read.xport(tf)
+IMQ_H3 <- IMQ_H3[cnames]
+
+download.file("https://wwwn.cdc.gov/nchs/nhanes/2015-2016/IMQ_I.XPT", tf <- tempfile(), mode="wb")
+IMQ_I3 <- foreign::read.xport(tf)
+IMQ_I3 <- IMQ_I3[cnames]
+
+download.file("https://wwwn.cdc.gov/nchs/nhanes/2017-2018/IMQ_J.XPT", tf <- tempfile(), mode="wb")
+IMQ_J3 <- foreign::read.xport(tf)
+IMQ_J3 <- IMQ_J3[cnames]
+
+IMQ <- rbind(rbind(IMQ_G3,IMQ_H3),rbind(IMQ_I3,IMQ_J3))
+
+
+#HUQ - Hospital Utilization & Access to Care
+cnames <- c('SEQN','HUQ010','HUQ051','HUQ071')
+download.file("https://wwwn.cdc.gov/nchs/nhanes/2011-2012/HUQ_G.XPT", tf <- tempfile(), mode="wb")
+HUQ_G3 <- foreign::read.xport(tf)
+colnames(HUQ_G3)[6] <- 'HUQ051'
+HUQ_G3 <- HUQ_G3[cnames]
+
+download.file("https://wwwn.cdc.gov/nchs/nhanes/2013-2014/HUQ_H.XPT", tf <- tempfile(), mode="wb")
+HUQ_H3 <- foreign::read.xport(tf)
+HUQ_H3 <- HUQ_H3[cnames]
+
+
+download.file("https://wwwn.cdc.gov/nchs/nhanes/2015-2016/HUQ_I.XPT", tf <- tempfile(), mode="wb")
+HUQ_I3 <- foreign::read.xport(tf)
+HUQ_I3 <- HUQ_I3[cnames]
+
+
+download.file("https://wwwn.cdc.gov/nchs/nhanes/2017-2018/HUQ_J.XPT", tf <- tempfile(), mode="wb")
+HUQ_J3 <- foreign::read.xport(tf)
+HUQ_J3 <- HUQ_J3[cnames]
+
+HUQ <- rbind(rbind(HUQ_G3,HUQ_H3),rbind(HUQ_I3,HUQ_J3))
+
+#ALQ was removed
+
+#BPQ
+cnames <- c('SEQN', 'BPQ020', 'BPQ080')
+download.file("https://wwwn.cdc.gov/nchs/nhanes/2011-2012/BPQ_G.XPT", tf <- tempfile(), mode="wb")
+BPQ_G3 <- foreign::read.xport(tf)
+BPQ_G3 <- BPQ_G3[cnames]
+
+download.file("https://wwwn.cdc.gov/nchs/nhanes/2013-2014/BPQ_H.XPT", tf <- tempfile(), mode="wb")
+BPQ_H3 <- foreign::read.xport(tf)
+BPQ_H3 <- BPQ_H3[cnames]
+
+download.file("https://wwwn.cdc.gov/nchs/nhanes/2015-2016/BPQ_I.XPT", tf <- tempfile(), mode="wb")
+BPQ_I3 <- foreign::read.xport(tf)
+BPQ_I3 <- BPQ_I3[cnames]
+
+
+download.file("https://wwwn.cdc.gov/nchs/nhanes/2017-2018/BPQ_J.XPT", tf <- tempfile(), mode="wb")
+BPQ_J3 <- foreign::read.xport(tf)
+BPQ_J3 <- BPQ_J3[cnames]
+
+BPQ <- rbind(rbind(BPQ_G3,BPQ_H3),rbind(BPQ_I3,BPQ_J3))
+BPQ$BPQ020[is.na(BPQ$BPQ020)] <- 9
+BPQ$BPQ080[is.na(BPQ$BPQ080)] <- 9
+
+#CDQ was removed
+
+#HSQ was removed
+
+#DBQ was removed
+
+#DUQ was removed
+
+#HIQ
+cnames <- c('SEQN', 'HIQ011')
+download.file("https://wwwn.cdc.gov/nchs/nhanes/2011-2012/HIQ_G.XPT", tf <- tempfile(), mode="wb")
+HIQ_G3 <- foreign::read.xport(tf)
+HIQ_G3 <- HIQ_G3[cnames]
+
+download.file("https://wwwn.cdc.gov/nchs/nhanes/2013-2014/HIQ_H.XPT", tf <- tempfile(), mode="wb")
+HIQ_H3 <- foreign::read.xport(tf)
+HIQ_H3 <- HIQ_H3[cnames]
+
+download.file("https://wwwn.cdc.gov/nchs/nhanes/2015-2016/HIQ_I.XPT", tf <- tempfile(), mode="wb")
+HIQ_I3 <- foreign::read.xport(tf)
+HIQ_I3 <- HIQ_I3[cnames]
+
+download.file("https://wwwn.cdc.gov/nchs/nhanes/2017-2018/HIQ_J.XPT", tf <- tempfile(), mode="wb")
+HIQ_J3 <- foreign::read.xport(tf)
+HIQ_J3 <- HIQ_J3[cnames]
+
+HIQ <- rbind(rbind(HIQ_G3,HIQ_H3),rbind(HIQ_I3,HIQ_J3))
+
+#INQ was removed
+
+#MCQ
+cnames <- c('SEQN','MCQ010', 'MCQ080' ,'MCQ160A', 'MCQ160B', 'MCQ160C', 'MCQ160D', 'MCQ160E', 'MCQ160F', 'MCQ160G', 'MCQ160K', 'MCQ160L', 'MCQ160M', 'MCQ160N', 'MCQ220')
+
+download.file("https://wwwn.cdc.gov/nchs/nhanes/2011-2012/MCQ_G.XPT", tf <- tempfile(), mode="wb")
+MCQ_G3 <- foreign::read.xport(tf)
+MCQ_G3 <- MCQ_G3[cnames]
+
+download.file("https://wwwn.cdc.gov/nchs/nhanes/2013-2014/MCQ_H.XPT", tf <- tempfile(), mode="wb")
+MCQ_H3 <- foreign::read.xport(tf)
+MCQ_H3 <- MCQ_H3[cnames]
+
+download.file("https://wwwn.cdc.gov/nchs/nhanes/2015-2016/MCQ_I.XPT", tf <- tempfile(), mode="wb")
+MCQ_I3 <- foreign::read.xport(tf)
+MCQ_I3 <- MCQ_I3[cnames]
+
+download.file("https://wwwn.cdc.gov/nchs/nhanes/2017-2018/MCQ_J.XPT", tf <- tempfile(), mode="wb")
+MCQ_J3 <- foreign::read.xport(tf)
+MCQ_J3 <- MCQ_J3[cnames]
+
+MCQ <- rbind(rbind(MCQ_G3,MCQ_H3),rbind(MCQ_I3,MCQ_J3))
+MCQ$MCQ010[is.na(MCQ$MCQ010)] <- 9
+MCQ$MCQ080[is.na(MCQ$MCQ080)] <- 9
+MCQ$MCQ160A[is.na(MCQ$MCQ160A)] <- 9
+MCQ$MCQ160B[is.na(MCQ$MCQ160B)] <- 9
+MCQ$MCQ160C[is.na(MCQ$MCQ160C)] <- 9
+MCQ$MCQ160D[is.na(MCQ$MCQ160D)] <- 9
+MCQ$MCQ160E[is.na(MCQ$MCQ160E)] <- 9
+MCQ$MCQ160F[is.na(MCQ$MCQ160F)] <- 9
+MCQ$MCQ160G[is.na(MCQ$MCQ160G)] <- 9
+MCQ$MCQ160K[is.na(MCQ$MCQ160K)] <- 9
+MCQ$MCQ160L[is.na(MCQ$MCQ160L)] <- 9
+MCQ$MCQ160M[is.na(MCQ$MCQ160M)] <- 9
+MCQ$MCQ160N[is.na(MCQ$MCQ160N)] <- 9
+MCQ$MCQ220[is.na(MCQ$MCQ220)] <- 9
+
+#PAQ was removed
+
+#RHQ Was removed
+
+#SLQ
+cnames <- c('SEQN', 'SLD012', 'SLQ050')
+download.file("https://wwwn.cdc.gov/nchs/nhanes/2011-2012/SLQ_G.XPT", tf <- tempfile(), mode="wb")
+SLQ_G3 <- foreign::read.xport(tf)
+colnames(SLQ_G3)[2] <- 'SLD012'
+SLQ_G3 <- SLQ_G3[-4]
+
+
+download.file("https://wwwn.cdc.gov/nchs/nhanes/2013-2014/SLQ_H.XPT", tf <- tempfile(), mode="wb")
+SLQ_H3 <- foreign::read.xport(tf)
+colnames(SLQ_H3)[2] <- 'SLD012'
+SLQ_H3 <- SLQ_H3[-4]
+
+
+download.file("https://wwwn.cdc.gov/nchs/nhanes/2015-2016/SLQ_I.XPT", tf <- tempfile(), mode="wb")
+SLQ_I3 <- foreign::read.xport(tf)
+SLQ_I3 <- SLQ_I3[cnames]
+
+
+download.file("https://wwwn.cdc.gov/nchs/nhanes/2017-2018/SLQ_J.XPT", tf <- tempfile(), mode="wb")
+SLQ_J3 <- foreign::read.xport(tf)
+SLQ_J3 <- SLQ_J3[cnames]
+
+SLQ <- rbind(rbind(SLQ_G3,SLQ_H3),rbind(SLQ_I3,SLQ_J3))
+
+#SMQ
+cnames <- c('SEQN', 'SMQ020')
+download.file("https://wwwn.cdc.gov/nchs/nhanes/2011-2012/SMQ_G.XPT", tf <- tempfile(), mode="wb")
+SMQ_G3 <- foreign::read.xport(tf)
+SMQ_G3 <- SMQ_G3[cnames]
+
+download.file("https://wwwn.cdc.gov/nchs/nhanes/2013-2014/SMQ_H.XPT", tf <- tempfile(), mode="wb")
+SMQ_H3 <- foreign::read.xport(tf)
+SMQ_H3 <- SMQ_H3[cnames]
+
+download.file("https://wwwn.cdc.gov/nchs/nhanes/2015-2016/SMQ_I.XPT", tf <- tempfile(), mode="wb")
+SMQ_I3 <- foreign::read.xport(tf)
+SMQ_I3 <- SMQ_I3[cnames]
+
+download.file("https://wwwn.cdc.gov/nchs/nhanes/2017-2018/SMQ_J.XPT", tf <- tempfile(), mode="wb")
+SMQ_J3 <- foreign::read.xport(tf)
+SMQ_J3 <- SMQ_J3[cnames]
+
+SMQ <- rbind(rbind(SMQ_G3,SMQ_H3),rbind(SMQ_I3,SMQ_J3))
+
+#WHQ was removed
+
+#BMX
+cnames <- c('SEQN', 'BMXWT', 'BMXHT')
+download.file("https://wwwn.cdc.gov/nchs/nhanes/2011-2012/BMX_G.XPT", tf <- tempfile(), mode="wb")
+BMX_G3 <- foreign::read.xport(tf)
+BMX_G3 <- BMX_G3[cnames]
+
+download.file("https://wwwn.cdc.gov/nchs/nhanes/2013-2014/BMX_H.XPT", tf <- tempfile(), mode="wb")
+BMX_H3 <- foreign::read.xport(tf)
+BMX_H3 <- BMX_H3[cnames]
+
+download.file("https://wwwn.cdc.gov/nchs/nhanes/2015-2016/BMX_I.XPT", tf <- tempfile(), mode="wb")
+BMX_I3 <- foreign::read.xport(tf)
+BMX_I3 <- BMX_I3[cnames]
+
+download.file("https://wwwn.cdc.gov/nchs/nhanes/2017-2018/BMX_J.XPT", tf <- tempfile(), mode="wb")
+BMX_J3 <- foreign::read.xport(tf)
+BMX_J3 <- BMX_J3[cnames]
+
+BMX <- rbind(rbind(BMX_G3,BMX_H3),rbind(BMX_I3,BMX_J3))
+
+data <- left_join(BMX, BPQ, by = 'SEQN')
+data <- left_join(data, DEMO, by = 'SEQN')
+data <- left_join(data, HEPB_S, by = 'SEQN')
+data <- left_join(data, HEPBD, by = 'SEQN')
+data <- left_join(data, HIQ, by = 'SEQN')
+data <- left_join(data, HUQ, by = 'SEQN')
+data <- left_join(data, IMQ, by = 'SEQN')
+data <- left_join(data, MCQ, by = 'SEQN')
+data <- left_join(data, SLQ, by = 'SEQN')
+data <- left_join(data, SMQ, by = 'SEQN')
+data <- na.omit(data)
+data <- data[data$LBXHBS !=1 ,]
+data <- data[,-16]
+
+data1 <- data
+```
+
+
+```{r}
+data <- data %>% 
+  dplyr::mutate(LBDHBG = ifelse( (LBXHBC==2),LBXHBC,LBDHBG),
+         LBDHBG = LBDHBG - 1) %>% dplyr::select(-SEQN,-LBXHBC)
+
+data <- data[data$LBDHBG!=2,]
+
+factors <- data %>% dplyr::select(-c("INDHHIN2", "DMDHHSIZ", "RIDAGEYR", "BMXWT", "BMXHT"))
+
+
+for(i in 2:length(factors)  ) {
+  factors[i] <- as.factor(factors[,i])
+}
+```
+
+
+
+```{r, warning=FALSE}
+set.seed(10)
+folds = 5
+foldId <- sample( c(1:folds), nrow(data), replace = TRUE)
+accuracyMatrix = matrix(0, nrow = folds, ncol = 5)
+tprMatrix = accuracyMatrix
+for (cc in 1:folds) {
+
+  testIdx <- which(foldId == cc)
+  trainIdx <- which(foldId != cc)
+
+  train.df <- data[trainIdx,]
+  test.df <- data[testIdx,]
+
+
+  logistic <- glm(LBDHBG ~ ., data = train.df, family = binomial())
+  #linear <- lda(LBDHBG ~ ., data = train.df)
+  #quadratic <- qda(LBDHBG ~ ., data = train.df)
+  bayes <- naiveBayes(LBDHBG ~ ., data = train.df)
+
+  
+  
+  
+  pred <- predict(logistic, test.df, type = 'response')
+  pred <- ifelse(pred > .5, 1, 0)
+  logisticCM <- confusionMatrix(data = as.factor(pred), 
+                                reference = as.factor(test.df$LBDHBG))
+  accuracyMatrix[cc, 1] <- logisticCM$overall["Accuracy"]
+  tprMatrix[cc, 1] <- logisticCM$byClass["Sensitivity"]
+
+  
+  
+  
+  #pred <- predict(linear, test.df, type = 'response')
+  #linearCM <- confusionMatrix(data = as.factor(pred$class), 
+  #                            reference = as.factor(test.df$LBDHBG))
+  #accuracyMatrix[cc, 2] <- linearCM$overall["Accuracy"]
+  #tprMatrix[cc, 2] <- linearCM$byClass["Sensitivity"]
+
+  
+  
+  
+  #pred <- predict(quadratic, test.df, type = 'response')
+  #quadraticCM <- confusionMatrix(data = as.factor(pred$class), 
+  #                               reference = as.factor(test.df$LBDHBG))
+  #accuracyMatrix[cc, 3] <- quadraticCM$overall["Accuracy"]
+  #tprMatrix[cc, 3] <- quadraticCM$byClass["Sensitivity"]
+
+  
+  
+  
+  pred <- predict(bayes, test.df)
+  bayesCM <- confusionMatrix(data = as.factor(pred), 
+                             reference = as.factor(test.df$LBDHBG))
+  accuracyMatrix[cc, 4] <- bayesCM$overall["Accuracy"]
+  tprMatrix[cc, 4] <- bayesCM$byClass["Sensitivity"]
+
+}
+
+
+meanAccuracyVector = rep(0, 5)
+meanTPRVector = meanAccuracyVector
+
+
+for (i in 1:5){
+  meanAccuracyVector[i] <- mean(accuracyMatrix[,i])
+  meanTPRVector[i] <- mean(tprMatrix[,i])
+}
+```
+
+
+
+## What worked
+
+- We got Naive Bayes and logistic regression to work
+- Used TPR and accuracy to assess model fit
+
+
+## Comparison
+
+```{r , echo = TRUE}
+meanTPRVector
+meanAccuracyVector
+```
+
+It looks like the Naive Bayes (in the fourth position) is over-classifying the positives at the expense of accuracy, which is what we want.  The logistic regression model is only predicting the negative ones right, but only because it was predicting everything as negative.
+
+## Lessons Learned
+
+- Start with minimum viable product
+- Make basic modeling decisions earlier
+- Oversampling/Undersampling methods with unbalanced data
+- Less time doing data collection
+
+## Extensions
+
+- Model/variable selection
+- Unsupervised learning methods (gain intuition)
+- Boosted Decision Trees
